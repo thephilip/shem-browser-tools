@@ -183,6 +183,7 @@ def connect_or_launch(connect_url=None):
     from playwright.sync_api import sync_playwright
 
     pw = sync_playwright().start()
+    browser = None
     try:
         if connect_url:
             browser = pw.chromium.connect_over_cdp(connect_url)
@@ -201,6 +202,11 @@ def connect_or_launch(connect_url=None):
 
         yield page
     finally:
+        if browser:
+            try:
+                browser.close()
+            except Exception:
+                pass
         pw.stop()
 
 
@@ -222,10 +228,14 @@ def _validate(action, args):
         "type": ["selector", "text"],
         "evaluate": ["script"],
         "pdf": [],
-        "list_tabs": [],
-        "switch_tab": ["tab_id"],
+        "list_tabs": ["connect_url"],
+        "switch_tab": ["tab_id", "connect_url"],
     }
-    missing = [k for k in required.get(action, []) if args.get(k) is None]
+    missing = []
+    for k in required.get(action, []):
+        val = args.get(k)
+        if val is None or (isinstance(val, str) and val == ""):
+            missing.append(k)
     if missing:
         return f"missing parameters: {', '.join(missing)}"
     return None
@@ -259,7 +269,7 @@ def run(args):
     if err:
         return {"error": err}
 
-    connect_url = args.get("connect_url")
+    connect_url = args.pop("connect_url", None)
 
     container_warning = None
     if not connect_url and not shutil.which("podman") and not shutil.which("docker"):
