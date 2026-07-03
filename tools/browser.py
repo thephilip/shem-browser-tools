@@ -1,8 +1,10 @@
+import base64
 import json
 import os
 import re
 import shutil
 import tempfile
+from contextlib import contextmanager
 from urllib.parse import urlparse
 
 
@@ -93,7 +95,6 @@ def _handle_screenshot(page, args):
         screenshot = el.screenshot(type="png")
     else:
         screenshot = page.screenshot(type="png", full_page=True)
-    import base64
     return {"screenshot": base64.b64encode(screenshot).decode("utf-8")}
 
 
@@ -177,6 +178,7 @@ def _handle_switch_tab(page, args):
 
 # ── Playwright connection manager ──────────────────────────────
 
+@contextmanager
 def connect_or_launch(connect_url=None):
     from playwright.sync_api import sync_playwright
 
@@ -223,7 +225,7 @@ def _validate(action, args):
         "list_tabs": [],
         "switch_tab": ["tab_id"],
     }
-    missing = [k for k in required.get(action, []) if not args.get(k)]
+    missing = [k for k in required.get(action, []) if args.get(k) is None]
     if missing:
         return f"missing parameters: {', '.join(missing)}"
     return None
@@ -257,7 +259,7 @@ def run(args):
     if err:
         return {"error": err}
 
-    connect_url = args.pop("connect_url", None)
+    connect_url = args.get("connect_url")
 
     container_warning = None
     if not connect_url and not shutil.which("podman") and not shutil.which("docker"):
