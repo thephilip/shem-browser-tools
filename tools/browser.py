@@ -56,7 +56,7 @@ def sanitize(text, domain=""):
     if blacklist and any(d in domain for d in blacklist):
         return "", True
 
-    cleaned = re.sub(r"[\u{E0000}-\u{E007F}]", "", text)
+    cleaned = re.sub("[\U000E0000-\U000E007F]", "", text)
 
     all_rx = BAD_RX + [re.compile(p, re.IGNORECASE) for p in extra_patterns]
     flagged = any(r.search(cleaned) for r in all_rx)
@@ -106,8 +106,7 @@ def _handle_extract(page, args):
         elements = page.query_selector_all(sel)
         texts = [el.inner_text() for el in elements]
         domain = _extract_domain(page.url)
-        cleaned, flagged = sanitize("\n".join(texts), domain)
-        result[sel] = cleaned.split("\n") if "\n" in cleaned else texts
+        result[sel] = [sanitize(t, domain)[0] for t in texts]
     return result
 
 
