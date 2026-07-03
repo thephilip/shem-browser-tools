@@ -1,6 +1,12 @@
-# Shem Browser Tools
+<p align="center">
+  <img src="shem-browser-tools.png" alt="Shem Browser Tools" width="480">
+</p>
 
-A [Shem](https://github.com/thephilip/shem) tool pack that gives LLM agents browser access — navigate, screenshot, extract text, click, type, run JavaScript, save PDFs, and manage tabs.
+<h1 align="center">Shem Browser Tools</h1>
+
+<p align="center">
+  A <a href="https://github.com/thephilip/shem">Shem</a> tool pack that gives LLM agents browser access — navigate, screenshot, extract text, click, type, run JavaScript, save PDFs, and manage tabs.
+</p>
 
 ## Install
 
