@@ -1,0 +1,50 @@
+{
+  "id": "browser",
+  "language": "python",
+  "description": "Control a web browser: navigate, screenshot, extract text, click elements, type text, run JavaScript, save PDFs, list/switch tabs. Supports standalone headless mode and live-connect to a running browser.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["navigate", "screenshot", "extract", "click", "type", "evaluate", "pdf", "list_tabs", "switch_tab"],
+        "description": "The browser action to perform"
+      },
+      "url": {
+        "type": "string",
+        "description": "URL to navigate to (required for navigate action)"
+      },
+      "selector": {
+        "type": "string",
+        "description": "CSS selector for click, type, or screenshot actions"
+      },
+      "selectors": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "List of CSS selectors for extract action"
+      },
+      "text": {
+        "type": "string",
+        "description": "Text to type into an element (required for type action)"
+      },
+      "script": {
+        "type": "string",
+        "description": "JavaScript code to evaluate in the page (required for evaluate action)"
+      },
+      "path": {
+        "type": "string",
+        "description": "File path to save PDF (optional, defaults to temp file for pdf action)"
+      },
+      "tab_id": {
+        "type": "integer",
+        "description": "Tab index to switch to (required for switch_tab action)"
+      },
+      "connect_url": {
+        "type": "string",
+        "description": "WebSocket URL to connect to an already-running browser (e.g., ws://127.0.0.1:9222/...). If omitted, launches a headless browser."
+      }
+    },
+    "required": ["action"]
+  },
+  "test_source": "# written in Task 3"
+}
