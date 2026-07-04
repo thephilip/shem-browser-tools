@@ -40,7 +40,9 @@ headless and live-connect mode.
 All actions accept an optional `connect_url` parameter. When provided, the tool
 connects to a running browser via Playwright's CDP WebSocket endpoint. When
 omitted, it launches a headless Firefox (configurable via
-`SHEM_BROWSER_TYPE=chromium` or `webkit`).
+`SHEM_BROWSER_TYPE=chromium` or `webkit`). Pass `profile` to any headless
+action to persist cookies and session state across calls (see Session
+Persistence below).
 
 **Scenarios:**
 
@@ -49,6 +51,7 @@ omitted, it launches a headless Firefox (configurable via
 - **Debug a UI:** `screenshot` → base64 for visual inspection, `evaluate` to dump state
 - **Scrape structured data:** `extract` with CSS selectors, or `evaluate` with JS for complex parsing
 - **Live browser session:** `list_tabs` to discover tabs, `switch_tab` to move between them, all other actions work on the active tab
+- **Login once, reuse:** pass `profile: "mysession"` to stay logged in across headless calls
 
 ## Live-connect mode
 
@@ -85,6 +88,28 @@ Configure via `~/.config/shem/sump-config.json`:
   "patterns": ["forget everything"]
 }
 ```
+
+## Session Persistence
+
+Headless browser sessions can preserve state (cookies, localStorage, auth
+sessions) across calls using named **profiles**. Pass `profile` to any action:
+
+```
+browser_navigate: navigate, url: "https://github.com/login", profile: "github-session"
+browser_navigate: navigate, url: "https://github.com/settings", profile: "github-session"
+```
+
+The second call reuses the same profile — you stay logged in.
+
+Profiles live at `~/.config/shem/profiles/<name>/`. Manage them:
+
+| Action | Parameters | Description |
+|--------|-----------|-------------|
+| `list_profiles` | none | List saved profiles with size; warns if >100 MB |
+| `clear_profile` | `profile` | Delete a profile directory |
+
+Live-connect mode (`connect_url`) ignores the `profile` parameter — the running
+browser owns its own state.
 
 ## License
 
