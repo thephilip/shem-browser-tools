@@ -1,7 +1,7 @@
 {
   "id": "browser",
   "language": "python",
-  "description": "Control a web browser: navigate, screenshot, extract text, click elements, type text, run JavaScript, save PDFs, list/switch tabs. Supports standalone headless mode and live-connect to a running browser.",
+  "description": "Control a web browser: navigate, screenshot, extract text, click elements, type text, run JavaScript, save PDFs, list/switch tabs. Also crawl sites, fetch RSS/Atom feeds, and archive pages. Supports standalone headless mode and live-connect to a running browser.",
   "schema": {
     "type": "object",
     "properties": {
@@ -23,7 +23,10 @@
           "is_visible",
           "select",
           "list_profiles",
-          "clear_profile"
+          "clear_profile",
+          "crawl",
+          "fetch_rss",
+          "archive_page"
         ],
         "description": "The browser action to perform"
       },
@@ -85,6 +88,18 @@
       "connect_url": {
         "type": "string",
         "description": "WebSocket URL to connect to an already-running browser (e.g., ws://127.0.0.1:9222/...). If omitted, launches a headless browser."
+      },
+      "max_pages": {
+        "type": "integer",
+        "description": "Maximum pages to crawl (default: 20, for crawl action)"
+      },
+      "same_domain": {
+        "type": "boolean",
+        "description": "Only follow links to the same domain (default: true, for crawl action)"
+      },
+      "archive_dir": {
+        "type": "string",
+        "description": "Directory to save archived pages (default: ~/.config/shem/archive, for archive_page action)"
       }
     },
     "required": [

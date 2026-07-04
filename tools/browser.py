@@ -4,8 +4,9 @@ import os
 import re
 import shutil
 import tempfile
+import time
 from contextlib import contextmanager
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 
 # ── Sump-based injection sanitization ──────────────────────────
@@ -287,6 +288,123 @@ def _handle_clear_profile(page, args):
     return {"cleared": name}
 
 
+# ── Crawl, RSS, Archive (standalone, no browser needed) ─────────
+
+ARCHIVE_DIR = os.path.expanduser("~/.config/shem/archive")
+
+
+def _handle_crawl(args):
+    url = args.get("url")
+    if not url:
+        return {"error": "missing 'url' parameter"}
+    max_pages = args.get("max_pages", 20)
+    same_domain = args.get("same_domain", True)
+
+    import httpx
+
+    visited = set()
+    to_visit = [url]
+    results = []
+    domain = urlparse(url).netloc if same_domain else None
+
+    while to_visit and len(visited) < max_pages:
+        current = to_visit.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+
+        try:
+            resp = httpx.get(current, timeout=15, follow_redirects=True)
+            html = resp.text
+        except Exception as e:
+            results.append({"url": current, "error": str(e)})
+            continue
+
+        title = ""
+        m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+        if m:
+            title = m.group(1).strip()
+
+        text = re.sub(r"<[^>]+>", " ", html)
+        text = re.sub(r"\s+", " ", text).strip()[:5000]
+
+        results.append({"url": current, "title": title, "text": text})
+
+        if len(visited) < max_pages:
+            for href in re.findall(r'href=["\'](.*?)["\']', html, re.IGNORECASE):
+                absolute = urljoin(current, href)
+                parsed = urlparse(absolute)
+                if parsed.scheme in ("http", "https") and absolute not in visited:
+                    if domain and urlparse(absolute).netloc != domain:
+                        continue
+                    to_visit.append(absolute)
+
+    return {"pages": results, "total": len(results), "crawled": list(visited)}
+
+
+def _handle_fetch_rss(args):
+    url = args.get("url")
+    if not url:
+        return {"error": "missing 'url' parameter"}
+
+    import feedparser
+
+    feed = feedparser.parse(url)
+    entries = []
+    for e in feed.entries[:50]:
+        entries.append({
+            "title": e.get("title", ""),
+            "link": e.get("link", ""),
+            "summary": e.get("summary", "")[:2000],
+            "published": e.get("published", ""),
+        })
+
+    return {
+        "feed_title": feed.feed.get("title", ""),
+        "entries": entries,
+        "total": len(feed.entries),
+    }
+
+
+def _handle_archive_page(args):
+    url = args.get("url")
+    if not url:
+        return {"error": "missing 'url' parameter"}
+    archive_dir = args.get("archive_dir", ARCHIVE_DIR)
+
+    import httpx
+
+    try:
+        resp = httpx.get(url, timeout=30, follow_redirects=True)
+        html = resp.text
+    except Exception as e:
+        return {"error": str(e)}
+
+    domain = urlparse(url).netloc
+    date_dir = time.strftime("%Y-%m-%d")
+    out_dir = os.path.join(archive_dir, domain, date_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    ts = time.strftime("%H%M%S")
+    name = re.sub(r"[^a-zA-Z0-9]", "_", urlparse(url).path.strip("/") or "index")
+    html_path = os.path.join(out_dir, f"{ts}_{name}.html")
+    meta_path = os.path.join(out_dir, f"{ts}_{name}.json")
+
+    with open(html_path, "w") as f:
+        f.write(html)
+
+    title = ""
+    m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+    if m:
+        title = m.group(1).strip()
+
+    meta = {"url": url, "title": title, "archived_at": time.time(), "size_bytes": len(html)}
+    with open(meta_path, "w") as f:
+        json.dump(meta, f)
+
+    return {"path": html_path, "title": title, "size_bytes": len(html)}
+
+
 # ── Playwright connection manager ──────────────────────────────
 
 @contextmanager
@@ -357,6 +475,9 @@ def _validate(action, args):
         "switch_tab": ["tab_id", "connect_url"],
         "list_profiles": [],
         "clear_profile": ["profile"],
+        "crawl": ["url"],
+        "fetch_rss": ["url"],
+        "archive_page": ["url"],
     }
     missing = []
     for k in required.get(action, []):
@@ -387,6 +508,9 @@ HANDLERS = {
     "switch_tab": _handle_switch_tab,
     "list_profiles": _handle_list_profiles,
     "clear_profile": _handle_clear_profile,
+    "crawl": _handle_crawl,
+    "fetch_rss": _handle_fetch_rss,
+    "archive_page": _handle_archive_page,
 }
 
 
@@ -409,8 +533,8 @@ def run(args):
 
     connect_url = args.pop("connect_url", None)
 
-    if action in ("list_profiles", "clear_profile"):
-        return handler(None, args)
+    if action in ("list_profiles", "clear_profile", "crawl", "fetch_rss", "archive_page"):
+        return handler(args)
 
     args.pop("profile", None)
     container_warning = None

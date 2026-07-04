@@ -15,3 +15,7 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+
+# Project-local
+ROADMAP.md
+Mnesia.shem@localhost/
