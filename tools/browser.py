@@ -13,6 +13,14 @@ from urllib.parse import urlparse
 CONFIG_DIR = os.path.expanduser("~/.config/shem")
 SUMP_CONFIG_PATH = os.path.join(CONFIG_DIR, "sump-config.json")
 
+PROFILES_DIR = os.path.expanduser("~/.config/shem/profiles")
+
+
+def _pick_browser_type():
+    bt = os.environ.get("SHEM_BROWSER_TYPE", "firefox").lower()
+    return bt if bt in ("chromium", "webkit") else "firefox"
+
+
 INJECTION_PATTERNS = [
     r"ignore\s+all\s+(previous\s+)?instructions",
     r"ignore\s+all\s+(prior\s+)?directives",
@@ -111,6 +119,71 @@ def _handle_extract(page, args):
     return result
 
 
+def _handle_hover(page, args):
+    selector = args.get("selector")
+    if not selector:
+        return {"error": "missing 'selector' parameter"}
+    el = page.wait_for_selector(selector, timeout=5000)
+    if not el:
+        return {"error": f"selector not found: {selector}"}
+    el.hover()
+    return {"hovered": selector}
+
+
+def _handle_scroll(page, args):
+    x = args.get("x", 0)
+    y = args.get("y")
+    selector = args.get("selector")
+
+    if selector:
+        el = page.wait_for_selector(selector, timeout=5000)
+        if not el:
+            return {"error": f"selector not found: {selector}"}
+        el.scroll_into_view_if_needed()
+        return {"scrolled_to": selector}
+    if y is None:
+        return {"error": "missing 'y' (pixels) or 'selector' parameter"}
+    page.evaluate(f"window.scrollBy({x}, {y})")
+    return {"scrolled": {"x": x, "y": y}}
+
+
+def _handle_wait(page, args):
+    ms = args.get("ms", 1000)
+    selector = args.get("selector")
+    if selector:
+        el = page.wait_for_selector(selector, timeout=ms)
+        if not el:
+            return {"error": f"selector not found: {selector}"}
+        return {"waited_for": selector}
+    page.wait_for_timeout(ms)
+    return {"waited": ms}
+
+
+def _handle_is_visible(page, args):
+    selector = args.get("selector")
+    if not selector:
+        return {"error": "missing 'selector' parameter"}
+    return {"visible": page.is_visible(selector)}
+
+
+def _handle_select(page, args):
+    selector = args.get("selector")
+    if not selector:
+        return {"error": "missing 'selector' parameter"}
+    value = args.get("value")
+    label = args.get("label")
+    if not value and not label:
+        return {"error": "missing 'value' or 'label' parameter"}
+    el = page.wait_for_selector(selector, timeout=5000)
+    if not el:
+        return {"error": f"selector not found: {selector}"}
+    if value:
+        el.select_option(value=value)
+        return {"selected": {"by": "value", "value": value}}
+    el.select_option(label=label)
+    return {"selected": {"by": "label", "label": label}}
+
+
 def _handle_click(page, args):
     selector = args.get("selector")
     if not selector:
@@ -176,32 +249,79 @@ def _handle_switch_tab(page, args):
     return {"tab_id": tab_id, "title": target.title(), "url": target.url}
 
 
+def _dir_size(path):
+    total = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            try:
+                total += os.path.getsize(fp)
+            except OSError:
+                pass
+    return total
+
+
+def _handle_list_profiles(page, args):
+    if not os.path.isdir(PROFILES_DIR):
+        return {"profiles": []}
+    profiles = []
+    for name in sorted(os.listdir(PROFILES_DIR)):
+        path = os.path.join(PROFILES_DIR, name)
+        if os.path.isdir(path):
+            size = _dir_size(path)
+            entry = {"name": name, "size_bytes": size}
+            if size > 100_000_000:
+                entry["warning"] = "profile exceeds 100 MB"
+            profiles.append(entry)
+    return {"profiles": profiles}
+
+
+def _handle_clear_profile(page, args):
+    name = args.get("profile")
+    if not name or not re.match(r"^[a-zA-Z0-9_-]+$", name):
+        return {"error": "invalid profile name"}
+    path = os.path.join(PROFILES_DIR, name)
+    if not os.path.isdir(path):
+        return {"error": f"profile not found: {name}"}
+    shutil.rmtree(path)
+    return {"cleared": name}
+
+
 # ── Playwright connection manager ──────────────────────────────
 
 @contextmanager
-def connect_or_launch(connect_url=None):
+def get_page(connect_url=None, profile=None):
     from playwright.sync_api import sync_playwright
 
     pw = sync_playwright().start()
     browser = None
+    context = None
     try:
+        browser_type = _pick_browser_type()
+        engine = getattr(pw, browser_type)
+
         if connect_url:
             browser = pw.chromium.connect_over_cdp(connect_url)
             context = browser.contexts[0] if browser.contexts else browser.new_context()
             page = context.pages[0] if context.pages else context.new_page()
+        elif profile:
+            profile_dir = os.path.join(PROFILES_DIR, profile)
+            os.makedirs(profile_dir, exist_ok=True)
+            context = engine.launch_persistent_context(
+                user_data_dir=profile_dir, headless=True
+            )
+            page = context.pages[0] if context.pages else context.new_page()
         else:
-            browser_type = os.environ.get("SHEM_BROWSER_TYPE", "firefox").lower()
-            if browser_type == "chromium":
-                browser = pw.chromium.launch(headless=True)
-            elif browser_type == "webkit":
-                browser = pw.webkit.launch(headless=True)
-            else:
-                browser = pw.firefox.launch(headless=True)
+            browser = engine.launch(headless=True)
             context = browser.new_context()
             page = context.new_page()
-
         yield page
     finally:
+        if context:
+            try:
+                context.close()
+            except Exception:
+                pass
         if browser:
             try:
                 browser.close()
@@ -224,12 +344,19 @@ def _validate(action, args):
         "navigate": ["url"],
         "screenshot": [],
         "extract": ["selectors"],
+        "is_visible": ["selector"],
+        "select": ["selector"],
         "click": ["selector"],
+        "hover": ["selector"],
+        "scroll": [],
+        "wait": [],
         "type": ["selector", "text"],
         "evaluate": ["script"],
         "pdf": [],
         "list_tabs": ["connect_url"],
         "switch_tab": ["tab_id", "connect_url"],
+        "list_profiles": [],
+        "clear_profile": ["profile"],
     }
     missing = []
     for k in required.get(action, []):
@@ -247,12 +374,19 @@ HANDLERS = {
     "navigate": _handle_navigate,
     "screenshot": _handle_screenshot,
     "extract": _handle_extract,
+    "is_visible": _handle_is_visible,
+    "select": _handle_select,
     "click": _handle_click,
+    "hover": _handle_hover,
+    "scroll": _handle_scroll,
+    "wait": _handle_wait,
     "type": _handle_type,
     "evaluate": _handle_evaluate,
     "pdf": _handle_pdf,
     "list_tabs": _handle_list_tabs,
     "switch_tab": _handle_switch_tab,
+    "list_profiles": _handle_list_profiles,
+    "clear_profile": _handle_clear_profile,
 }
 
 
@@ -270,13 +404,19 @@ def run(args):
         return {"error": err}
 
     connect_url = args.pop("connect_url", None)
+    profile = args.pop("profile", None)
+    if profile and not re.match(r"^[a-zA-Z0-9_-]+$", profile):
+        return {"error": "invalid profile name (use [a-zA-Z0-9_-]+)"}
+
+    if action in ("list_profiles", "clear_profile"):
+        return handler(None, args)
 
     container_warning = None
     if not connect_url and not shutil.which("podman") and not shutil.which("docker"):
         container_warning = "No container runtime detected (podman/docker). Running on host — Playwright must be installed manually."
 
     try:
-        with connect_or_launch(connect_url) as page:
+        with get_page(connect_url, profile) as page:
             result = handler(page, args)
 
         if container_warning and "error" not in result:
