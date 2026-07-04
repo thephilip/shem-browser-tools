@@ -5,7 +5,7 @@
 <h1 align="center">Shem Browser Tools</h1>
 
 <p align="center">
-  A <a href="https://github.com/thephilip/shem">Shem</a> tool pack that gives LLM agents browser access — navigate, screenshot, extract text, click, type, run JavaScript, save PDFs, and manage tabs.
+  A <a href="https://github.com/thephilip/shem">Shem</a> tool pack that gives LLM agents browser access — navigate, screenshot, extract text, click, type, run JavaScript, save PDFs, manage tabs, crawl sites, fetch RSS feeds, and archive pages.
 </p>
 
 ## Install
@@ -38,10 +38,13 @@ headless and live-connect mode.
 | **switch_tab** | `tab_id`, `connect_url` | tab info | "Switch to tab 2" |
 | **list_profiles** | none | profile list with sizes | "What saved sessions do I have?" |
 | **clear_profile** | `profile` | confirmation | "Delete that old session" |
+| **crawl** | `url`, `max_pages` (opt, 20), `same_domain` (opt, true) | list of pages with url, title, text | "Crawl example.com up to 10 pages" |
+| **fetch_rss** | `url` | feed title + entries | "Get the latest HN headlines" |
+| **archive_page** | `url`, `archive_dir` (opt) | saved HTML path, title, size | "Save this page for offline reference" |
 
-All actions accept an optional `connect_url` parameter. When provided, the tool
-connects to a running browser via Playwright's CDP WebSocket endpoint. When
-omitted, it launches a headless Firefox (configurable via
+All browser-based actions accept an optional `connect_url` parameter. When
+provided, the tool connects to a running browser via Playwright's CDP WebSocket
+endpoint. When omitted, it launches a headless Firefox (configurable via
 `SHEM_BROWSER_TYPE=chromium` or `webkit`). Pass `profile` to any headless
 action to persist cookies and session state across calls (see Session
 Persistence below).
@@ -54,6 +57,9 @@ Persistence below).
 - **Scrape structured data:** `extract` with CSS selectors, or `evaluate` with JS for complex parsing
 - **Live browser session:** `list_tabs` to discover tabs, `switch_tab` to move between them, all other actions work on the active tab
 - **Login once, reuse:** pass `profile: "mysession"` to stay logged in across headless calls
+- **Crawl a site:** `crawl` fetches pages via HTTP (no browser), extracts text + links, follows same-domain BFS up to `max_pages` — use for docs, blogs, reference sites
+- **Check an RSS feed:** `fetch_rss` parses RSS/Atom feeds without a browser — use for news, changelogs, podcasts
+- **Archive a page:** `archive_page` saves HTML + metadata to `~/.config/shem/archive/<domain>/<date>/` — use for research, compliance, offline reading
 
 ## Live-connect mode
 
@@ -72,6 +78,8 @@ To attach to a running browser over CDP:
 
 - **Python 3** with `playwright` installed: `pip install playwright && playwright install`
 - **Podman or Docker** (recommended) for sandboxed execution. Falls back to host with a warning if neither is detected.
+- `crawl` and `archive_page` use `httpx` (stdlib fallback if missing): `pip install httpx`
+- `fetch_rss` uses `feedparser`: `pip install feedparser`
 
 ## Prompt Injection Defense
 
