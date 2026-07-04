@@ -399,18 +399,20 @@ def run(args):
     if not handler:
         return {"error": f"unknown action: {action}"}
 
+    profile = args.get("profile")
+    if profile and not re.match(r"^[a-zA-Z0-9_-]+$", profile):
+        return {"error": "invalid profile name (use [a-zA-Z0-9_-]+)"}
+
     err = _validate(action, args)
     if err:
         return {"error": err}
 
     connect_url = args.pop("connect_url", None)
-    profile = args.pop("profile", None)
-    if profile and not re.match(r"^[a-zA-Z0-9_-]+$", profile):
-        return {"error": "invalid profile name (use [a-zA-Z0-9_-]+)"}
 
     if action in ("list_profiles", "clear_profile"):
         return handler(None, args)
 
+    args.pop("profile", None)
     container_warning = None
     if not connect_url and not shutil.which("podman") and not shutil.which("docker"):
         container_warning = "No container runtime detected (podman/docker). Running on host — Playwright must be installed manually."
