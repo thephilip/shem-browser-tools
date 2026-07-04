@@ -36,6 +36,8 @@ headless and live-connect mode.
 | **pdf** | `path` (opt) | file path | "Save this receipt as a PDF" |
 | **list_tabs** | `connect_url` | tab list (id, title, url) | "What tabs are open?" |
 | **switch_tab** | `tab_id`, `connect_url` | tab info | "Switch to tab 2" |
+| **list_profiles** | none | profile list with sizes | "What saved sessions do I have?" |
+| **clear_profile** | `profile` | confirmation | "Delete that old session" |
 
 All actions accept an optional `connect_url` parameter. When provided, the tool
 connects to a running browser via Playwright's CDP WebSocket endpoint. When
