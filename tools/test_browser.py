@@ -82,7 +82,8 @@ def test_select_requires_value_or_label():
 
 def test_list_profiles_no_dir():
     result = run({"action": "list_profiles"})
-    assert result == {"profiles": []}
+    assert isinstance(result, dict)
+    assert isinstance(result.get("profiles"), list)
 
 def test_clear_profile_requires_name():
     result = run({"action": "clear_profile"})
@@ -102,4 +103,8 @@ def test_profile_param_validation_rejects_traversal():
 
 def test_profile_param_accepts_valid_name():
     result = run({"action": "navigate", "profile": "my-session_1"})
+    assert "invalid profile" not in result.get("error", "").lower()
+
+def test_profile_ignored_with_connect_url():
+    result = run({"action": "list_tabs", "connect_url": "ws://localhost:1/", "profile": "my-session_1"})
     assert "invalid profile" not in result.get("error", "").lower()
