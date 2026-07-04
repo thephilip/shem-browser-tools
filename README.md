@@ -11,7 +11,7 @@
 ## Install
 
 ```bash
-shem-install https://github.com/YOUR_USER/shem-browser-tools
+shem-install https://github.com/thephilip/shem-browser-tools
 ```
 
 Or from a local path:
@@ -22,46 +22,42 @@ shem-install file:///path/to/shem-browser-tools
 
 ## Usage
 
-A single `browser` tool dispatches by `action`:
+A single `browser` tool dispatches by `action`. Each action runs identically in
+headless and live-connect mode.
 
-```
-browser_navigate: navigate to a URL and return sanitized page text
-  action: "navigate", url: "https://example.com"
+| Action | Parameters | Returns | Use case |
+|---|---|---|---|
+| **navigate** | `url` | page title, safe text, final URL | "Read the docs at example.com/docs" |
+| **screenshot** | `selector` (opt) | base64 PNG | "Show me what this page looks like" or "capture the #results element" |
+| **extract** | `selectors` (list) | text per selector | "Get all `h2` headlines and `.price` values" |
+| **click** | `selector` | confirmation | "Click 'Accept Cookies'" or "click the 'Next' link" |
+| **type** | `selector`, `text` | confirmation | "Fill 'myuser' into the username field" |
+| **evaluate** | `script` | JS return value | "What's `document.title`?" or "Scrape JSON from a script tag" |
+| **pdf** | `path` (opt) | file path | "Save this receipt as a PDF" |
+| **list_tabs** | `connect_url` | tab list (id, title, url) | "What tabs are open?" |
+| **switch_tab** | `tab_id`, `connect_url` | tab info | "Switch to tab 2" |
 
-browser_screenshot: capture a screenshot (selector optional, defaults to full page)
-  action: "screenshot", selector: "#main"          (optional)
+All actions accept an optional `connect_url` parameter. When provided, the tool
+connects to a running browser via Playwright's CDP WebSocket endpoint. When
+omitted, it launches a headless Firefox (configurable via
+`SHEM_BROWSER_TYPE=chromium` or `webkit`).
 
-browser_extract: extract text from CSS selectors
-  action: "extract", selectors: ["h1", ".content"]
+**Scenarios:**
 
-browser_click: click an element
-  action: "click", selector: "#submit-btn"
-
-browser_type: type text into an input
-  action: "type", selector: "#search", text: "hello"
-
-browser_evaluate: run JavaScript in the page
-  action: "evaluate", script: "document.title"
-
-browser_pdf: save page as PDF
-  action: "pdf", path: "/tmp/page.pdf"             (optional, defaults to temp)
-
-browser_list_tabs: list open tabs (live-connect mode only)
-  action: "list_tabs", connect_url: "ws://..."
-
-browser_switch_tab: switch to a tab (live-connect mode only)
-  action: "switch_tab", tab_id: 2, connect_url: "ws://..."
-```
-
-All actions accept an optional `connect_url` parameter. When provided, the tool connects to a running browser via Playwright's CDP WebSocket endpoint. When omitted, it launches a headless Firefox (configurable via `SHEM_BROWSER_TYPE=chromium` or `webkit`).
+- **Read a page:** `navigate` → returns safe text, blocks prompt injection
+- **Interact with a form:** `type` into inputs, `click` the submit button, then `navigate` to follow redirects
+- **Debug a UI:** `screenshot` → base64 for visual inspection, `evaluate` to dump state
+- **Scrape structured data:** `extract` with CSS selectors, or `evaluate` with JS for complex parsing
+- **Live browser session:** `list_tabs` to discover tabs, `switch_tab` to move between them, all other actions work on the active tab
 
 ## Live-connect mode
 
-To attach to your running Zen/Firefox or Chrome:
+To attach to a running browser over CDP:
 
 1. Start your browser with remote debugging:
-   - **Firefox/Zen:** `firefox --remote-debugging-port 9222`
-   - **Chrome:** `google-chrome --remote-debugging-port=9222`
+   - **Chrome/Chromium:** `google-chrome --remote-debugging-port=9222`
+   - **Playwright's Chromium:** `~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome --remote-debugging-port=9222`
+   - **Firefox/Zen** do not support CDP; use headless mode instead.
 2. Pass the WebSocket URL as `connect_url`:
    ```
    browser_list_tabs: list_tabs, connect_url: "ws://127.0.0.1:9222/..."
