@@ -262,7 +262,7 @@ def _dir_size(path):
     return total
 
 
-def _handle_list_profiles(page, args):
+def _handle_list_profiles(args):
     if not os.path.isdir(PROFILES_DIR):
         return {"profiles": []}
     profiles = []
@@ -277,7 +277,7 @@ def _handle_list_profiles(page, args):
     return {"profiles": profiles}
 
 
-def _handle_clear_profile(page, args):
+def _handle_clear_profile(args):
     name = args.get("profile")
     if not name or not re.match(r"^[a-zA-Z0-9_-]+$", name):
         return {"error": "invalid profile name"}
