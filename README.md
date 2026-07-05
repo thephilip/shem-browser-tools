@@ -81,6 +81,14 @@ To attach to a running browser over CDP:
 - `crawl` and `archive_page` use `httpx` (stdlib fallback if missing): `pip install httpx`
 - `fetch_rss` uses `feedparser`: `pip install feedparser`
 
+### First-run downloads
+
+This pack declares a sandbox profile requiring `mcr.microsoft.com/playwright/python`
+(~1.7 GB image with Chromium, Firefox, and WebKit pre-installed) and network
+access. The image is pulled on first run when installed via `--grant browser`.
+Without the grant the tool runs in the default slim image and fails — Playwright
+and its browser binaries aren't available there.
+
 ## Prompt Injection Defense
 
 This pack integrates sanitization logic from [Sump](https://github.com/thephilip/sump) (Apache 2.0). All page text returned to the LLM is:
@@ -120,6 +128,15 @@ Profiles live at `~/.config/shem/profiles/<name>/`. Manage them:
 
 Live-connect mode (`connect_url`) ignores the `profile` parameter — the running
 browser owns its own state.
+
+## Side effects and determinism
+
+Browser actions are side-effecting. Shem replay of a session re-runs them —
+`click`, `type`, `navigate`, and other mutating actions execute again on replay,
+including form submissions and state changes. Profiles persist state across
+calls (cookies, localStorage, auth sessions) and accumulate between sessions.
+Evaluated JavaScript (`evaluate` action) runs arbitrary code in the page
+context and is tagged `risk: execute` in the tool manifest.
 
 ## License
 
