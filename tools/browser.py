@@ -96,6 +96,9 @@ def _handle_navigate(page, args):
 
 
 def _handle_screenshot(page, args):
+    url = args.get("url")
+    if url:
+        page.goto(url, timeout=30000)
     selector = args.get("selector")
     if selector:
         el = page.wait_for_selector(selector, timeout=5000)
