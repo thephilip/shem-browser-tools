@@ -108,7 +108,7 @@
   },
   "sandbox": {
     "network": true,
-    "image": "docker.io/mcr.microsoft.com/playwright/python:v1.44"
+    "image": "mcr.microsoft.com/playwright/python:v1.44"
   },
   "actions": [
     {"name": "navigate",    "risk": "write"},
